@@ -1,0 +1,14 @@
+name: gcp_demo2
+channels:
+  - conda-forge
+  - defaults
+dependencies:
+  - python=3.11
+  - fsspec
+  - gcsfs
+  - matplotlib
+  - numpy
+  - optuna
+  - pandas
+  - seaborn
+  - sklearn

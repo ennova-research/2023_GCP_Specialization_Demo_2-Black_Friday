@@ -1,0 +1,8 @@
+fsspec
+gcsfs
+matplotlib
+numpy
+optuna
+pandas
+seaborn
+sklearn
