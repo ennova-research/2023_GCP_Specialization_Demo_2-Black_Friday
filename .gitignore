@@ -1,3 +1,2 @@
-data/train.csv
-data/test.csv
-data/tmp/*
+data
+tmp/*
