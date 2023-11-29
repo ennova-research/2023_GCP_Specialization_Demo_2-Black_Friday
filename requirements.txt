@@ -6,4 +6,4 @@ numpy
 optuna
 pandas
 seaborn
-sklearn
+scikit-learn
