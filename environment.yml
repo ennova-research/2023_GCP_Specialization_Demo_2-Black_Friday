@@ -1,4 +1,4 @@
-name: gcp_demo2
+name: demo2
 channels:
   - conda-forge
   - defaults
@@ -6,6 +6,7 @@ dependencies:
   - python=3.11
   - fsspec
   - gcsfs
+  - lightgbm
   - matplotlib
   - numpy
   - optuna

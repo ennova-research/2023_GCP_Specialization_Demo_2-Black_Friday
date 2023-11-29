@@ -1,5 +1,6 @@
 fsspec
 gcsfs
+lightgbm
 matplotlib
 numpy
 optuna
