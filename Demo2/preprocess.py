@@ -1,12 +1,23 @@
 import numpy as np
 import pandas as pd
-from sklearn.preprocessing import LabelEncoder
 
 
 def encode_categoricals(data):
-    label_encoder = LabelEncoder()
-    object_cols = data.columns[data.dtypes == 'object']
-    data.loc[:, object_cols] = data.loc[:, object_cols].apply(lambda x: label_encoder.fit_transform(x))
+    data['Gender'] = (data['Gender'] == 'F').astype(int)
+    
+    data.loc[data['Age'] == '55+', 'Age'] = '55-95'
+    data['Age'] = data['Age'].apply(lambda x: np.mean(list(map(int, x.split('-')))))
+    
+    one_hot_encoded_city = pd.get_dummies(data['Occupation'], prefix='Occupation').astype(int)
+    data = pd.concat([data, one_hot_encoded_city], axis=1)
+    data = data.drop('Occupation', axis=1)
+    
+    one_hot_encoded_city = pd.get_dummies(data['City_Category'], prefix='City_Category').astype(int)
+    data = pd.concat([data, one_hot_encoded_city], axis=1)
+    data = data.drop('City_Category', axis=1)
+    
+    data['Stay_In_Current_City_Years'] = data['Stay_In_Current_City_Years'].str[:1].astype(int)
+    
     return data
 
 
