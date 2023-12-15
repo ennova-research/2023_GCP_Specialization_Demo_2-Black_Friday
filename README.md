@@ -34,16 +34,16 @@ To run the code in the notebooks, we have created a conda environment to work wi
 
 The app is currently deployed at the following link:
 
-https://demo-1-b6lmpdo3cq-uc.a.run.app/docs
+https://demo-2-b6lmpdo3cq-uc.a.run.app/docs
 
 To deploy a new version of the app, first create a container by running:
 
-```docker build -t demo-1-app .```
+```docker build -t demo-2 .```
 
 Then upload the container on Google Cloud Build by running:
 
-```gcloud builds submit --tag gcr.io/ml-spec/demo-1-app```
+```gcloud builds submit --tag gcr.io/ml-spec/demo-2```
 
 Finally deploy the container on Google Cloud Run by running:
 
-```gcloud run deploy --image gcr.io/ml-spec/demo-1-app --platform managed --port 5000 --memory 4G --cpu 2 --timeout 60m```
+```gcloud run deploy --image gcr.io/ml-spec/demo-2 --platform managed --port 5000 --memory 4G --cpu 2 --timeout 60m```
