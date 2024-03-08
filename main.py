@@ -43,7 +43,6 @@ class HyperparameterTuningRequest(BaseModel):
     preprocess: bool = True
 
 class TrainRequest(BaseModel):
-    final_model_path: str
     initial_model_path: str = None
     model_params: dict = {}
     data_path: str = None
@@ -132,6 +131,7 @@ async def preprocess(request:PreprocessRequest, background_tasks: BackgroundTask
         JSONResponse: JSON response containing the path to the preprocessed data.
     """
     async def preprocess_data_task(request:PreprocessRequest):
+        global bucket
         try:
             # Read input data from CSV file
             data = pd.read_csv(request.data_path)
@@ -140,8 +140,12 @@ async def preprocess(request:PreprocessRequest, background_tasks: BackgroundTask
             preprocessed_data = preprocess_data(data, threshold)
 
             # Save preprocessed data to a binary file using pickle
-            with open(request.processed_data_path, 'wb') as f:
-                pickle.dump(preprocessed_data, f)
+            file = pickle.dump(preprocessed_data)
+            blob = bucket.blob("preprocess.pkl")
+            blob.upload_from_filename(file)
+            
+            #with open(request.processed_data_path, 'wb') as f:
+            #    pickle.dump(preprocessed_data, f)
 
             # Return success response with the path to the preprocessed data
             return {"preprocessed_data_path": request.processed_data_path}
@@ -179,6 +183,7 @@ async def tune(request:HyperparameterTuningRequest, background_tasks: Background
     - HTTPException: If an error occurs during the execution.
     """
     async def hyperparameter_tuning_task(request:HyperparameterTuningRequest):
+        global bucket
         try:
             # Read data from CSV file
             data = pd.read_csv(request.data_path)
@@ -188,15 +193,16 @@ async def tune(request:HyperparameterTuningRequest, background_tasks: Background
                 data = preprocess_data(data)
 
             # Perform hyperparameter tuning
-            study = tune(data['X'], data['y'], request.n_trials, request.direction)
+            study = Demo2.training.tune(data['X'], data['y'], request.n_trials, request.direction)
 
             # Log or save the best hyperparameters, or perform other actions as needed
-            # TODO: IMPLEMENT SAVING OF THIS
-            print(study)
+            # TODO: IMPLEMENT SAVING OF THIS file = pickle.dump(preprocessed_data)
+            blob = bucket.blob("tune.json")
+            blob.upload_from_filename(study)
 
         except Exception as e:
             # Log or handle exceptions here
-            print(str(e))
+            raise HTTPException(status_code=500, detail=str(e))
 
     # Enqueue hyperparameter tuning task as a background task
     background_tasks.add_task(hyperparameter_tuning_task, request)
@@ -221,6 +227,7 @@ async def train(request:TrainRequest, background_tasks:BackgroundTasks):
     - JSONResponse: JSON response containing information about the trained model, threshold, and score.
     """
     async def train_model(request:TrainRequest):
+        global bucket
         try:
             # Load the initial model or create a new one
             if request.initial_model_path:
@@ -249,14 +256,23 @@ async def train(request:TrainRequest, background_tasks:BackgroundTasks):
             scores = Demo2.training.evaluate(model, data['X'], data['y'], classification_threshold=best_threshold, cross_val=True)
 
             # Save the trained model
-            with open(request.final_model_path, 'wb') as f:
+            with open("model.pkl", 'wb') as f:
                 pickle.dump(model, f)
 
+            blob = bucket.blob("model.pkl")
+            blob.upload_from_filename("model.pkl")
+
             # Return a JSON response with relevant information
-            # TODO: IMPLEMENT SAVING OF THIS
-            return {"trained_model_path": request.final_model_path,
+            
+            with open ("scores.json", 'w') as fp:
+                json.dump({ 
                      'threshold': best_threshold,
-                     'score': scores.mean()}
+                     'score': scores.mean()}, fp)
+
+            blob = bucket.blob("scores.json")
+            blob.upload_from_filename("scores.json")
+
+            return HTTPException(200)
         
         except Exception as e:
             # Handle exceptions and return a meaningful error response
