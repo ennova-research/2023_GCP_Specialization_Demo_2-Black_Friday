@@ -1,6 +1,7 @@
 from fastapi import BackgroundTasks, FastAPI, HTTPException, Request, Query
 from fastapi.responses import JSONResponse
 from typing import List, Optional
+from pydantic import BaseModel
 import uvicorn
 
 import json
@@ -30,6 +31,23 @@ my_dict = pickle.loads(serialized_data)
 model = my_dict['model']
 threshold = my_dict['threshold']
 
+class PreprocessRequest(BaseModel):
+    data_path: str
+    processed_data_path: str
+    threshold: float = None
+
+class HyperparameterTuningRequest(BaseModel):
+    data_path: str
+    n_trials: int = 100
+    direction: str = 'maximize'
+    preprocess: bool = True
+
+class TrainRequest(BaseModel):
+    final_model_path: str
+    initial_model_path: str = None
+    model_params: dict = {}
+    data_path: str = None
+    preprocess: bool = True
 
 def preprocess_data(data, threshold=None):
     """
@@ -99,8 +117,9 @@ def read_root():
     """
     return "GCP Specialization - Demo 2"
 
+
 @app.post("/preprocess")
-def preprocess(data_path: str, processed_data_path: str, background_tasks: BackgroundTasks, threshold: float = None):
+async def preprocess(request:PreprocessRequest, background_tasks: BackgroundTasks):
     """
     Endpoint for preprocessing data.
 
@@ -112,20 +131,20 @@ def preprocess(data_path: str, processed_data_path: str, background_tasks: Backg
     Returns:
         JSONResponse: JSON response containing the path to the preprocessed data.
     """
-    def preprocess_data_task():
+    async def preprocess_data_task(request:PreprocessRequest):
         try:
             # Read input data from CSV file
-            data = pd.read_csv(data_path)
+            data = pd.read_csv(request.data_path)
 
             # Perform data preprocessing
             preprocessed_data = preprocess_data(data, threshold)
 
             # Save preprocessed data to a binary file using pickle
-            with open(processed_data_path, 'wb') as f:
+            with open(request.processed_data_path, 'wb') as f:
                 pickle.dump(preprocessed_data, f)
 
             # Return success response with the path to the preprocessed data
-            return {"preprocessed_data_path": processed_data_path}
+            return {"preprocessed_data_path": request.processed_data_path}
 
         except FileNotFoundError:
             # Handle file not found error
@@ -136,13 +155,14 @@ def preprocess(data_path: str, processed_data_path: str, background_tasks: Backg
             raise HTTPException(status_code=500, detail=str(e))
 
     # Add the preprocessing function as a background task
-    background_tasks.add_task(preprocess_data_task)
+    background_tasks.add_task(preprocess_data_task, request)
 
     # Return an acknowledgement that the preprocessing process has been started
     return {"message": "Data preprocessing process has been started in the background."}
 
+
 @app.post("/hyperparameter_tuning")
-async def tune(data_path: str, background_tasks: BackgroundTasks, n_trials: int = 100, direction: str = 'maximize', preprocess: bool = True):
+async def tune(request:HyperparameterTuningRequest, background_tasks: BackgroundTasks):
     """
     Endpoint for hyperparameter tuning.
 
@@ -158,17 +178,17 @@ async def tune(data_path: str, background_tasks: BackgroundTasks, n_trials: int 
     Raises:
     - HTTPException: If an error occurs during the execution.
     """
-    async def hyperparameter_tuning_task(data_path: str, n_trials: int, direction: str, preprocess: bool):
+    async def hyperparameter_tuning_task(request:HyperparameterTuningRequest):
         try:
             # Read data from CSV file
-            data = pd.read_csv(data_path)
+            data = pd.read_csv(request.data_path)
 
             # Preprocess data if preprocess flag is True
-            if preprocess:
+            if request.preprocess:
                 data = preprocess_data(data)
 
             # Perform hyperparameter tuning
-            study = tune(data['X'], data['y'], n_trials, direction)
+            study = tune(data['X'], data['y'], request.n_trials, request.direction)
 
             # Log or save the best hyperparameters, or perform other actions as needed
             # TODO: IMPLEMENT SAVING OF THIS
@@ -179,14 +199,14 @@ async def tune(data_path: str, background_tasks: BackgroundTasks, n_trials: int 
             print(str(e))
 
     # Enqueue hyperparameter tuning task as a background task
-    background_tasks.add_task(hyperparameter_tuning_task, data_path, n_trials, direction, preprocess)
+    background_tasks.add_task(hyperparameter_tuning_task, request)
     
     # Return a response indicating that the task has been enqueued
     return JSONResponse(content={"message": "Hyperparameter tuning task has been enqueued."}, status_code=200)
 
 
 @app.post("/train")
-def train(final_model_path, background_tasks:BackgroundTasks, initial_model_path=None, model_params={}, data_path=None, preprocess=True):
+async def train(request:TrainRequest, background_tasks:BackgroundTasks):
     """
     Endpoint for training a machine learning model.
 
@@ -200,20 +220,20 @@ def train(final_model_path, background_tasks:BackgroundTasks, initial_model_path
     Returns:
     - JSONResponse: JSON response containing information about the trained model, threshold, and score.
     """
-    def train_model():
+    async def train_model(request:TrainRequest):
         try:
             # Load the initial model or create a new one
-            if initial_model_path:
-                with open(initial_model_path, 'rb') as f:
+            if request.initial_model_path:
+                with open(request.initial_model_path, 'rb') as f:
                     model = pickle.load(f)
             else:
-                if isinstance(model_params, str):
-                    model_params = json.loads(model_params)
-                model = Demo2.training.create_model(model_params)
+                if isinstance(request.model_params, str):
+                    request.model_params = json.loads(request.model_params)
+                model = Demo2.training.create_model(request.model_params)
 
             # Load training data and preprocess if required
-            if data_path:
-                data = pd.read_csv(data_path)
+            if request.data_path:
+                data = pd.read_csv(request.data_path)
                 if preprocess:
                     data = preprocess_data(data)
             else:
@@ -229,24 +249,23 @@ def train(final_model_path, background_tasks:BackgroundTasks, initial_model_path
             scores = Demo2.training.evaluate(model, data['X'], data['y'], classification_threshold=best_threshold, cross_val=True)
 
             # Save the trained model
-            with open(final_model_path, 'wb') as f:
+            with open(request.final_model_path, 'wb') as f:
                 pickle.dump(model, f)
 
             # Return a JSON response with relevant information
             # TODO: IMPLEMENT SAVING OF THIS
-            return {"trained_model_path": final_model_path,
+            return {"trained_model_path": request.final_model_path,
                      'threshold': best_threshold,
                      'score': scores.mean()}
+        
         except Exception as e:
             # Handle exceptions and return a meaningful error response
             raise HTTPException(status_code=500, detail=str(e))
      # Add the training function as a background task
-    background_tasks.add_task(train_model)
+    background_tasks.add_task(train_model, request)
     
     # Return an acknowledgement that the training process has been started
     return {"message": "Model training process has been started in the background."}
-
-    
 
 
 @app.post("/predict")
@@ -306,9 +325,11 @@ async def predict(request: Request):
         print()
         raise HTTPException(status_code=500, detail=str(e))
 
+
 @app.get("/healthcheck")
 async def healthcheck():
     return {"status": "alive"}
+
 
 if __name__ == '__main__':
     uvicorn.run(app, port=5000, host="0.0.0.0")#, reload=True)
