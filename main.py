@@ -33,7 +33,6 @@ threshold = my_dict['threshold']
 
 class PreprocessRequest(BaseModel):
     data_path: str
-    processed_data_path: str
     threshold: float = None
 
 class HyperparameterTuningRequest(BaseModel):
@@ -144,11 +143,14 @@ async def preprocess(request:PreprocessRequest, background_tasks: BackgroundTask
             blob = bucket.blob("preprocess.pkl")
             blob.upload_from_filename(file)
             
-            #with open(request.processed_data_path, 'wb') as f:
-            #    pickle.dump(preprocessed_data, f)
+            with open("preprocessed_data.pkl", 'wb') as f:
+                pickle.dump(preprocessed_data, f)
+
+            blob = bucket.blob("preprocessed_data.pkl")
+            blob.upload_from_filename("preprocessed_data.pkl")
 
             # Return success response with the path to the preprocessed data
-            return {"preprocessed_data_path": request.processed_data_path}
+            return 200
 
         except FileNotFoundError:
             # Handle file not found error
@@ -196,9 +198,15 @@ async def tune(request:HyperparameterTuningRequest, background_tasks: Background
             study = Demo2.training.tune(data['X'], data['y'], request.n_trials, request.direction)
 
             # Log or save the best hyperparameters, or perform other actions as needed
-            # TODO: IMPLEMENT SAVING OF THIS file = pickle.dump(preprocessed_data)
-            blob = bucket.blob("tune.json")
-            blob.upload_from_filename(study)
+             # Return a JSON response with relevant information
+            
+            with open ("study.json", 'w') as fp:
+                json.dump(study, fp)
+
+            blob = bucket.blob("study.json")
+            blob.upload_from_filename("study.json")
+
+            return 200
 
         except Exception as e:
             # Log or handle exceptions here
@@ -272,7 +280,7 @@ async def train(request:TrainRequest, background_tasks:BackgroundTasks):
             blob = bucket.blob("scores.json")
             blob.upload_from_filename("scores.json")
 
-            return HTTPException(200)
+            return 200
         
         except Exception as e:
             # Handle exceptions and return a meaningful error response
