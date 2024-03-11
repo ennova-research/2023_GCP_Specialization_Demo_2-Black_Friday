@@ -1,0 +1,11 @@
+fastapi[all]
+fsspec
+gcsfs
+ipykernel
+lightgbm
+matplotlib
+numpy
+optuna
+pandas
+seaborn
+scikit-learn

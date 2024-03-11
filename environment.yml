@@ -1,0 +1,17 @@
+name: demo2
+channels:
+  - conda-forge
+  - defaults
+dependencies:
+  - python=3.11
+  - fastapi[all]
+  - fsspec
+  - gcsfs
+  - ipykernel
+  - lightgbm
+  - matplotlib
+  - numpy
+  - optuna
+  - pandas
+  - seaborn
+  - scikit-learn
