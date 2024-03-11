@@ -32,11 +32,11 @@ model = my_dict['model']
 threshold = my_dict['threshold']
 
 class PreprocessRequest(BaseModel):
-    data_path: str
+    data_path: str = "gs://engo-ml_spec2023-demo2/data_raw.csv"
     threshold: float = None
 
 class HyperparameterTuningRequest(BaseModel):
-    data_path: str
+    data_path: str = "gs://engo-ml_spec2023-demo2/data_raw.csv"
     n_trials: int = 100
     direction: str = 'maximize'
     preprocess: bool = True
@@ -129,7 +129,7 @@ async def preprocess(request:PreprocessRequest, background_tasks: BackgroundTask
     Returns:
         JSONResponse: JSON response containing the path to the preprocessed data.
     """
-    async def preprocess_data_task(request:PreprocessRequest):
+    def preprocess_data_task(request:PreprocessRequest):
         global bucket
         try:
             # Read input data from CSV file
@@ -139,26 +139,20 @@ async def preprocess(request:PreprocessRequest, background_tasks: BackgroundTask
             preprocessed_data = preprocess_data(data, threshold)
 
             # Save preprocessed data to a binary file using pickle
-            file = pickle.dump(preprocessed_data)
-            blob = bucket.blob("preprocess.pkl")
-            blob.upload_from_filename(file)
-            
             with open("preprocessed_data.pkl", 'wb') as f:
                 pickle.dump(preprocessed_data, f)
 
             blob = bucket.blob("preprocessed_data.pkl")
             blob.upload_from_filename("preprocessed_data.pkl")
+            print("Preprocessed data saved to bucket")
 
-            # Return success response with the path to the preprocessed data
-            return 200
-
-        except FileNotFoundError:
+        except FileNotFoundError as e:
             # Handle file not found error
-            raise HTTPException(status_code=404, detail="File not found")
+            print(str(e))
 
         except Exception as e:
             # Handle other exceptions and return a generic 500 internal server error
-            raise HTTPException(status_code=500, detail=str(e))
+            print(str(e))
 
     # Add the preprocessing function as a background task
     background_tasks.add_task(preprocess_data_task, request)
@@ -184,7 +178,7 @@ async def tune(request:HyperparameterTuningRequest, background_tasks: Background
     Raises:
     - HTTPException: If an error occurs during the execution.
     """
-    async def hyperparameter_tuning_task(request:HyperparameterTuningRequest):
+    def hyperparameter_tuning_task(request:HyperparameterTuningRequest):
         global bucket
         try:
             # Read data from CSV file
@@ -200,17 +194,15 @@ async def tune(request:HyperparameterTuningRequest, background_tasks: Background
             # Log or save the best hyperparameters, or perform other actions as needed
              # Return a JSON response with relevant information
             
-            with open ("study.json", 'w') as fp:
+            with open ("study_hyper.json", 'w') as fp:
                 json.dump(study, fp)
 
-            blob = bucket.blob("study.json")
-            blob.upload_from_filename("study.json")
-
-            return 200
+            blob = bucket.blob("study_hyper.json")
+            blob.upload_from_filename("study_hyper.json")
+            print("study_hyper.json uploaded to bucket")
 
         except Exception as e:
-            # Log or handle exceptions here
-            raise HTTPException(status_code=500, detail=str(e))
+            print(str(e))
 
     # Enqueue hyperparameter tuning task as a background task
     background_tasks.add_task(hyperparameter_tuning_task, request)
@@ -234,7 +226,7 @@ async def train(request:TrainRequest, background_tasks:BackgroundTasks):
     Returns:
     - JSONResponse: JSON response containing information about the trained model, threshold, and score.
     """
-    async def train_model(request:TrainRequest):
+    def train_model(request:TrainRequest):
         global bucket
         try:
             # Load the initial model or create a new one
@@ -269,6 +261,7 @@ async def train(request:TrainRequest, background_tasks:BackgroundTasks):
 
             blob = bucket.blob("model.pkl")
             blob.upload_from_filename("model.pkl")
+            print("model.pkl uploaded to bucket")
 
             # Return a JSON response with relevant information
             
@@ -279,12 +272,12 @@ async def train(request:TrainRequest, background_tasks:BackgroundTasks):
 
             blob = bucket.blob("scores.json")
             blob.upload_from_filename("scores.json")
+            print("scores.json uploaded to bucket")
 
-            return 200
-        
         except Exception as e:
             # Handle exceptions and return a meaningful error response
-            raise HTTPException(status_code=500, detail=str(e))
+            print(str(e))
+
      # Add the training function as a background task
     background_tasks.add_task(train_model, request)
     
