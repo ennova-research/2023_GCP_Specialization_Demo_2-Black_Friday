@@ -299,7 +299,7 @@ async def predict(request: Request):
 
     Args:
         data_path (str): Path to the CSV file containing input data.
-        model (object): The machine learning model for prediction.
+        model_path (str): The path where the machine learning model for prediction is.
         threshold (float): Threshold for the prediction.
         preprocess (bool): Flag indicating whether to preprocess the data.
 
@@ -316,7 +316,10 @@ async def predict(request: Request):
         model = model
     else:
         #read model from gs://
-        model = body["model"]
+        blob = storage.Blob(body.model_path.split("/")[-1], bucket)
+        with open("tmp_model.pkl", "wb") as file_obj:
+            blob.download_to_file(file_obj)
+        model = pickle.load(open("tmp_model.pkl", "rb"))
 
     if "threshold" not in body:
         threshold=threshold
