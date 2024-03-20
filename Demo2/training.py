@@ -73,10 +73,12 @@ def tune(X, y, n_trials=100, direction='maximize'):
     print('Best Trial:')
     print('  Value: ', study.best_trial.value)
     print('  Params: ')
+    study_best = {}
     for key, value in study.best_trial.params.items():
         print(f'    {key}: {value}')
-    
-    return study
+        study_best[key] = value
+
+    return study_best
 
 
 class Objective:
