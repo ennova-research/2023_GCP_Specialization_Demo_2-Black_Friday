@@ -9,11 +9,12 @@ import numpy as np
 import pandas as pd
 import pickle
 from google.cloud import storage
+
 import os
 
 import Demo2
 
-#os.environ["GOOGLE_APPLICATION_CREDENTIALS"]="google_credentials.json"
+os.environ["GOOGLE_APPLICATION_CREDENTIALS"]="google_credentials.json"
 
 app = FastAPI()
 
@@ -43,7 +44,7 @@ class HyperparameterTuningRequest(BaseModel):
 
 class TrainRequest(BaseModel):
     initial_model_path: str = None
-    model_params: dict = {}
+    model_params: str = "gs://engo-ml_spec2023-demo2/study_hyper.csv"
     data_path: str = None
     preprocess: bool = True
 
@@ -139,11 +140,11 @@ async def preprocess(request:PreprocessRequest, background_tasks: BackgroundTask
             preprocessed_data = preprocess_data(data, threshold)
 
             # Save preprocessed data to a binary file using pickle
-            with open("preprocessed_data.pkl", 'wb') as f:
+            with open("preprocessed_data.csv", 'wb') as f:
                 pickle.dump(preprocessed_data, f)
 
-            blob = bucket.blob("preprocessed_data.pkl")
-            blob.upload_from_filename("preprocessed_data.pkl")
+            blob = bucket.blob("preprocessed_data.csv")
+            blob.upload_from_filename("preprocessed_data.csv")
             print("Preprocessed data saved to bucket")
 
         except FileNotFoundError as e:
@@ -235,8 +236,14 @@ async def train(request:TrainRequest, background_tasks:BackgroundTasks):
                     model = pickle.load(f)
             else:
                 if isinstance(request.model_params, str):
-                    request.model_params = json.loads(request.model_params)
-                model = Demo2.training.create_model(request.model_params)
+                    #TODO check if correct parameters
+                    blob = storage.Blob("study_hyper.json", bucket)
+                    with open("study_hyper_from_gs.json", "wb") as file_obj:
+                        blob.download_to_file(file_obj)
+                    
+                    with open("study_hyper_from_gs.json", 'r') as model_parameters_json:
+                        model_parameters = json.load(model_parameters_json)
+                        model = Demo2.training.create_model(model_parameters)
 
             # Load training data and preprocess if required
             if request.data_path:
@@ -292,7 +299,7 @@ async def predict(request: Request):
 
     Args:
         data_path (str): Path to the CSV file containing input data.
-        model (object): The machine learning model for prediction.
+        model_path (str): The path where the machine learning model for prediction is.
         threshold (float): Threshold for the prediction.
         preprocess (bool): Flag indicating whether to preprocess the data.
 
@@ -308,7 +315,11 @@ async def predict(request: Request):
     if "model" not in body:
         model = model
     else:
-        model = body["model"]
+        #read model from gs://
+        blob = storage.Blob(body.model_path.split("/")[-1], bucket)
+        with open("tmp_model.pkl", "wb") as file_obj:
+            blob.download_to_file(file_obj)
+        model = pickle.load(open("tmp_model.pkl", "rb"))
 
     if "threshold" not in body:
         threshold=threshold
